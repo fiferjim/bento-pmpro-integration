@@ -31,8 +31,9 @@ class Bento_Integration_Settings {
 		add_action( 'admin_menu', [ __CLASS__, 'add_settings_page' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
-		add_action( 'wp_ajax_bento_pmpro_fetch_fields',       [ __CLASS__, 'ajax_fetch_fields' ] );
-		add_action( 'wp_ajax_bento_pmpro_condition_values',   [ __CLASS__, 'ajax_condition_values' ] );
+		add_action( 'wp_ajax_bento_pmpro_fetch_fields',     [ __CLASS__, 'ajax_fetch_fields' ] );
+		add_action( 'wp_ajax_bento_pmpro_condition_values', [ __CLASS__, 'ajax_condition_values' ] );
+		add_action( 'wp_ajax_bento_pmpro_sync_batch',       [ __CLASS__, 'ajax_sync_batch' ] );
 	}
 
 	// -------------------------------------------------------------------------
@@ -171,9 +172,10 @@ class Bento_Integration_Settings {
 			true
 		);
 		wp_localize_script( 'bento-pmpro-admin', 'bentoPmpro', [
-			'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
-			'nonce'      => wp_create_nonce( 'bento_pmpro_fetch_fields' ),
-			'condNonce'  => wp_create_nonce( 'bento_pmpro_condition_values' ),
+			'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
+			'nonce'     => wp_create_nonce( 'bento_pmpro_fetch_fields' ),
+			'condNonce' => wp_create_nonce( 'bento_pmpro_condition_values' ),
+			'syncNonce' => wp_create_nonce( 'bento_pmpro_sync_batch' ),
 		] );
 	}
 
@@ -333,6 +335,229 @@ class Bento_Integration_Settings {
 		$data['quiz_grade_type'] = [ 'auto', 'manual', 'pass_fail' ];
 
 		wp_send_json_success( $data );
+	}
+
+	// -------------------------------------------------------------------------
+	// Shared helper: resolve field mappings for any event key
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Resolve configured custom-field mappings for a given event key, applying
+	 * any conditions against the supplied $details array.
+	 *
+	 * Used both by the event handler classes and the bulk-sync handler so the
+	 * same logic runs whether the event fires in real time or via manual sync.
+	 *
+	 * @param string $event_key The settings key (e.g. 'pmpro_checkout').
+	 * @param int    $user_id   WordPress user ID.
+	 * @param array  $details   Event detail payload used for condition checks and
+	 *                          'event_data' source lookups.
+	 * @return array{event_name: string, custom_fields: array<string, mixed>}
+	 */
+	public static function resolve_event_fields( string $event_key, int $user_id, array $details ): array {
+		$all   = get_option( self::OPTION_KEY, [] );
+		$saved = $all[ $event_key ] ?? [];
+		$defs  = self::get_event_definitions();
+
+		$event_name    = $saved['event_name'] ?? ( $defs[ $event_key ]['default_event'] ?? $event_key );
+		$mappings      = $saved['custom_fields'] ?? [];
+		$custom_fields = [];
+
+		foreach ( $mappings as $mapping ) {
+			$key = sanitize_key( $mapping['key'] ?? '' );
+			if ( '' === $key ) {
+				continue;
+			}
+
+			// Condition check.
+			$ck = $mapping['condition_key']   ?? '';
+			$cv = $mapping['condition_value'] ?? '';
+			if ( '' !== $ck && (string) ( $details[ $ck ] ?? '' ) !== $cv ) {
+				continue;
+			}
+
+			$type  = $mapping['source_type']  ?? 'static';
+			$value = $mapping['source_value'] ?? '';
+
+			if ( 'user_meta' === $type ) {
+				$custom_fields[ $key ] = get_user_meta( $user_id, sanitize_key( $value ), true );
+			} elseif ( 'event_data' === $type ) {
+				$custom_fields[ $key ] = $details[ $value ] ?? '';
+			} else {
+				$custom_fields[ $key ] = sanitize_text_field( $value );
+			}
+		}
+
+		return compact( 'event_name', 'custom_fields' );
+	}
+
+	// -------------------------------------------------------------------------
+	// AJAX: bulk sync existing users
+	// -------------------------------------------------------------------------
+
+	/**
+	 * AJAX handler: process one batch of existing users/enrollments.
+	 *
+	 * Accepts POST fields:
+	 *   type   – 'pmpro' or 'sensei'
+	 *   offset – integer, starting row for this batch
+	 *
+	 * Returns JSON with: total, offset (after this batch), done (bool).
+	 */
+	public static function ajax_sync_batch(): void {
+		check_ajax_referer( 'bento_pmpro_sync_batch' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+			return;
+		}
+
+		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+			wp_send_json_error( 'Bento plugin is not active.' );
+			return;
+		}
+
+		$type   = sanitize_key( $_POST['type']   ?? 'pmpro' );
+		$offset = max( 0, (int) ( $_POST['offset'] ?? 0 ) );
+
+		if ( 'sensei' === $type ) {
+			wp_send_json_success( self::sync_sensei_batch( $offset ) );
+		} else {
+			wp_send_json_success( self::sync_pmpro_batch( $offset ) );
+		}
+	}
+
+	/**
+	 * Process one batch of active PMPro members.
+	 * Uses the 'pmpro_checkout' event configuration for field mappings.
+	 */
+	private static function sync_pmpro_batch( int $offset, int $batch = 25 ): array {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'pmpro_memberships_users';
+
+		// Check the table exists (i.e. PMPro is installed).
+		if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) !== $table ) {
+			return [ 'total' => 0, 'offset' => 0, 'done' => true, 'error' => 'PMPro is not installed.' ];
+		}
+
+		$total = (int) $wpdb->get_var(
+			"SELECT COUNT(DISTINCT user_id) FROM {$table} WHERE status = 'active'"
+		);
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT DISTINCT user_id, membership_id
+			 FROM {$table}
+			 WHERE status = 'active'
+			 ORDER BY user_id
+			 LIMIT %d OFFSET %d",
+			$batch, $offset
+		) );
+
+		foreach ( $rows as $row ) {
+			$user_id = (int) $row->user_id;
+			$user    = get_userdata( $user_id );
+			if ( ! $user || empty( $user->user_email ) ) {
+				continue;
+			}
+
+			$level = pmpro_getLevel( (int) $row->membership_id );
+			if ( ! $level ) {
+				continue;
+			}
+
+			$details  = [
+				'level_id'     => (int) $level->id,
+				'level_name'   => $level->name,
+				'order_total'  => 0,
+				'payment_type' => '',
+			];
+			$resolved = self::resolve_event_fields( 'pmpro_checkout', $user_id, $details );
+
+			if ( ! empty( $resolved['event_name'] ) ) {
+				Bento_Events_Controller::trigger_event(
+					$user_id,
+					$resolved['event_name'],
+					$user->user_email,
+					$details,
+					$resolved['custom_fields']
+				);
+			}
+		}
+
+		$new_offset = $offset + count( $rows );
+
+		return [
+			'total'  => $total,
+			'offset' => $new_offset,
+			'done'   => $new_offset >= $total,
+		];
+	}
+
+	/**
+	 * Process one batch of active Sensei LMS course enrollments.
+	 * Uses the 'sensei_course_enrolled' event configuration for field mappings.
+	 */
+	private static function sync_sensei_batch( int $offset, int $batch = 25 ): array {
+		global $wpdb;
+
+		// Sensei stores course activity in wp_comments.
+		$total = (int) $wpdb->get_var(
+			"SELECT COUNT(*)
+			 FROM (
+			     SELECT DISTINCT user_ID, comment_post_ID
+			     FROM {$wpdb->comments}
+			     WHERE comment_type = 'sensei_course_status'
+			     AND comment_approved IN ('in-progress', 'complete')
+			 ) t"
+		);
+
+		if ( 0 === $total ) {
+			return [ 'total' => 0, 'offset' => 0, 'done' => true ];
+		}
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT DISTINCT user_ID AS user_id, comment_post_ID AS course_id
+			 FROM {$wpdb->comments}
+			 WHERE comment_type = 'sensei_course_status'
+			 AND comment_approved IN ('in-progress', 'complete')
+			 ORDER BY user_ID, comment_post_ID
+			 LIMIT %d OFFSET %d",
+			$batch, $offset
+		) );
+
+		foreach ( $rows as $row ) {
+			$user_id   = (int) $row->user_id;
+			$course_id = (int) $row->course_id;
+			$user      = get_userdata( $user_id );
+			if ( ! $user || empty( $user->user_email ) ) {
+				continue;
+			}
+
+			$details  = [
+				'course_id'    => $course_id,
+				'course_title' => get_the_title( $course_id ),
+			];
+			$resolved = self::resolve_event_fields( 'sensei_course_enrolled', $user_id, $details );
+
+			if ( ! empty( $resolved['event_name'] ) ) {
+				Bento_Events_Controller::trigger_event(
+					$user_id,
+					$resolved['event_name'],
+					$user->user_email,
+					$details,
+					$resolved['custom_fields']
+				);
+			}
+		}
+
+		$new_offset = $offset + count( $rows );
+
+		return [
+			'total'  => $total,
+			'offset' => $new_offset,
+			'done'   => $new_offset >= $total,
+		];
 	}
 
 	// -------------------------------------------------------------------------
@@ -569,6 +794,44 @@ class Bento_Integration_Settings {
 
 				<?php submit_button( 'Save Settings' ); ?>
 			</form>
+
+			<hr style="margin:32px 0;">
+
+			<h2>Sync Existing Users</h2>
+			<p>
+				Apply your configured field mappings to users who already existed before this plugin was installed.
+				Each sync fires the same event (with the same name and field mappings) as if the action had just happened —
+				so the subscriber record in Bento gets the correct fields set.
+				<br><strong>Note:</strong> save your settings above before running a sync.
+			</p>
+
+			<table class="form-table">
+				<tr>
+					<th scope="row">PMPro Members</th>
+					<td>
+						<p class="description" style="margin-bottom:8px;">
+							Sends the configured <em>PMPro: Member Checkout</em> event for every user with
+							an active membership, using their current level. Conditions (e.g. "only if
+							level_name = Free") are applied exactly as configured.
+						</p>
+						<button id="bento-sync-pmpro" class="button button-primary">Sync Active Members</button>
+						<span id="bento-sync-pmpro-status" style="margin-left:12px;"></span>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">Sensei Enrollments</th>
+					<td>
+						<p class="description" style="margin-bottom:8px;">
+							Sends the configured <em>Sensei: Course Enrolled</em> event for every active
+							or completed course enrollment. Useful when students enrolled before this
+							plugin was active.
+						</p>
+						<button id="bento-sync-sensei" class="button button-primary">Sync Course Enrollments</button>
+						<span id="bento-sync-sensei-status" style="margin-left:12px;"></span>
+					</td>
+				</tr>
+			</table>
+
 		</div>
 		<?php
 	}

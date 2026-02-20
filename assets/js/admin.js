@@ -188,4 +188,61 @@ jQuery( function ( $ ) {
 		$( this ).closest( '.bento-field-row' ).remove();
 	} );
 
+	// -------------------------------------------------------------------------
+	// Bulk sync: process batches until done, updating a status string
+	// -------------------------------------------------------------------------
+	function runSync( type, $btn, $status ) {
+		$btn.prop( 'disabled', true );
+		$status.text( 'Starting…' );
+
+		function processBatch( offset ) {
+			$.post(
+				bentoPmpro.ajaxUrl,
+				{
+					action:      'bento_pmpro_sync_batch',
+					_ajax_nonce: bentoPmpro.syncNonce,
+					type:        type,
+					offset:      offset,
+				},
+				function ( response ) {
+					if ( ! response.success ) {
+						$status.text( 'Error: ' + ( response.data || 'unknown error' ) );
+						$btn.prop( 'disabled', false );
+						return;
+					}
+
+					var d = response.data;
+
+					if ( d.total === 0 ) {
+						$status.text( 'Nothing to sync — no active records found.' );
+						$btn.prop( 'disabled', false );
+						return;
+					}
+
+					$status.text( 'Synced ' + Math.min( d.offset, d.total ) + ' of ' + d.total + '…' );
+
+					if ( d.done ) {
+						$status.text( '✓ Done — synced ' + d.total + ' records.' );
+						$btn.prop( 'disabled', false );
+					} else {
+						processBatch( d.offset );
+					}
+				}
+			).fail( function () {
+				$status.text( 'Request failed — please try again.' );
+				$btn.prop( 'disabled', false );
+			} );
+		}
+
+		processBatch( 0 );
+	}
+
+	$( '#bento-sync-pmpro' ).on( 'click', function () {
+		runSync( 'pmpro', $( this ), $( '#bento-sync-pmpro-status' ) );
+	} );
+
+	$( '#bento-sync-sensei' ).on( 'click', function () {
+		runSync( 'sensei', $( this ), $( '#bento-sync-sensei-status' ) );
+	} );
+
 } );
