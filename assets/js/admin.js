@@ -191,7 +191,7 @@ jQuery( function ( $ ) {
 	// -------------------------------------------------------------------------
 	// Bulk sync: process batches until done, updating a status string
 	// -------------------------------------------------------------------------
-	function runSync( type, $btn, $status ) {
+	function runSync( type, $btn, $status, filterId ) {
 		$btn.prop( 'disabled', true );
 		$status.text( 'Starting…' );
 
@@ -203,6 +203,7 @@ jQuery( function ( $ ) {
 					_ajax_nonce: bentoPmpro.syncNonce,
 					type:        type,
 					offset:      offset,
+					filter_id:   filterId || 0,
 				},
 				function ( response ) {
 					if ( ! response.success ) {
@@ -238,11 +239,11 @@ jQuery( function ( $ ) {
 	}
 
 	$( '#bento-sync-pmpro' ).on( 'click', function () {
-		runSync( 'pmpro', $( this ), $( '#bento-sync-pmpro-status' ) );
+		runSync( 'pmpro', $( this ), $( '#bento-sync-pmpro-status' ), $( '#bento-sync-pmpro-filter' ).val() );
 	} );
 
 	$( '#bento-sync-sensei' ).on( 'click', function () {
-		runSync( 'sensei', $( this ), $( '#bento-sync-sensei-status' ) );
+		runSync( 'sensei', $( this ), $( '#bento-sync-sensei-status' ), $( '#bento-sync-sensei-filter' ).val() );
 	} );
 
 } );

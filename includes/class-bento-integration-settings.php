@@ -417,13 +417,14 @@ class Bento_Integration_Settings {
 			return;
 		}
 
-		$type   = sanitize_key( $_POST['type']   ?? 'pmpro' );
-		$offset = max( 0, (int) ( $_POST['offset'] ?? 0 ) );
+		$type      = sanitize_key( $_POST['type']      ?? 'pmpro' );
+		$offset    = max( 0, (int) ( $_POST['offset']    ?? 0 ) );
+		$filter_id = max( 0, (int) ( $_POST['filter_id'] ?? 0 ) );
 
 		if ( 'sensei' === $type ) {
-			wp_send_json_success( self::sync_sensei_batch( $offset ) );
+			wp_send_json_success( self::sync_sensei_batch( $offset, 25, $filter_id ) );
 		} else {
-			wp_send_json_success( self::sync_pmpro_batch( $offset ) );
+			wp_send_json_success( self::sync_pmpro_batch( $offset, 25, $filter_id ) );
 		}
 	}
 
@@ -431,7 +432,7 @@ class Bento_Integration_Settings {
 	 * Process one batch of active PMPro members.
 	 * Uses the 'pmpro_checkout' event configuration for field mappings.
 	 */
-	private static function sync_pmpro_batch( int $offset, int $batch = 25 ): array {
+	private static function sync_pmpro_batch( int $offset, int $batch = 25, int $filter_level_id = 0 ): array {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'pmpro_memberships_users';
@@ -441,14 +442,18 @@ class Bento_Integration_Settings {
 			return [ 'total' => 0, 'offset' => 0, 'done' => true, 'error' => 'PMPro is not installed.' ];
 		}
 
+		$filter_sql = $filter_level_id > 0
+			? $wpdb->prepare( ' AND membership_id = %d', $filter_level_id )
+			: '';
+
 		$total = (int) $wpdb->get_var(
-			"SELECT COUNT(DISTINCT user_id) FROM {$table} WHERE status = 'active'"
+			"SELECT COUNT(DISTINCT user_id) FROM {$table} WHERE status = 'active'{$filter_sql}"
 		);
 
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT DISTINCT user_id, membership_id
 			 FROM {$table}
-			 WHERE status = 'active'
+			 WHERE status = 'active'{$filter_sql}
 			 ORDER BY user_id
 			 LIMIT %d OFFSET %d",
 			$batch, $offset
@@ -498,8 +503,12 @@ class Bento_Integration_Settings {
 	 * Process one batch of active Sensei LMS course enrollments.
 	 * Uses the 'sensei_course_enrolled' event configuration for field mappings.
 	 */
-	private static function sync_sensei_batch( int $offset, int $batch = 25 ): array {
+	private static function sync_sensei_batch( int $offset, int $batch = 25, int $filter_course_id = 0 ): array {
 		global $wpdb;
+
+		$filter_sql = $filter_course_id > 0
+			? $wpdb->prepare( ' AND comment_post_ID = %d', $filter_course_id )
+			: '';
 
 		// Sensei stores course activity in wp_comments.
 		$total = (int) $wpdb->get_var(
@@ -508,7 +517,7 @@ class Bento_Integration_Settings {
 			     SELECT DISTINCT user_ID, comment_post_ID
 			     FROM {$wpdb->comments}
 			     WHERE comment_type = 'sensei_course_status'
-			     AND comment_approved IN ('in-progress', 'complete')
+			     AND comment_approved IN ('in-progress', 'complete'){$filter_sql}
 			 ) t"
 		);
 
@@ -520,7 +529,7 @@ class Bento_Integration_Settings {
 			"SELECT DISTINCT user_ID AS user_id, comment_post_ID AS course_id
 			 FROM {$wpdb->comments}
 			 WHERE comment_type = 'sensei_course_status'
-			 AND comment_approved IN ('in-progress', 'complete')
+			 AND comment_approved IN ('in-progress', 'complete'){$filter_sql}
 			 ORDER BY user_ID, comment_post_ID
 			 LIMIT %d OFFSET %d",
 			$batch, $offset
@@ -805,16 +814,45 @@ class Bento_Integration_Settings {
 				<br><strong>Note:</strong> save your settings above before running a sync.
 			</p>
 
+			<?php
+			// PMPro levels for the filter dropdown.
+			$pmpro_levels = [];
+			if ( function_exists( 'pmpro_getAllLevels' ) ) {
+				$pmpro_levels = pmpro_getAllLevels( false, true );
+			} else {
+				global $wpdb;
+				$pmpro_levels = $wpdb->get_results(
+					"SELECT id, name FROM {$wpdb->prefix}pmpro_membership_levels WHERE status = 'active' ORDER BY name"
+				);
+			}
+
+			// Sensei courses for the filter dropdown.
+			$sensei_courses = get_posts( [
+				'post_type'      => 'course',
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			] );
+			?>
+
 			<table class="form-table">
 				<tr>
 					<th scope="row">PMPro Members</th>
 					<td>
 						<p class="description" style="margin-bottom:8px;">
-							Sends the configured <em>PMPro: Member Checkout</em> event for every user with
-							an active membership, using their current level. Conditions (e.g. "only if
-							level_name = Free") are applied exactly as configured.
+							Sends the configured <em>PMPro: Member Checkout</em> event for active members,
+							applying your field mappings and conditions. Pick a specific level or sync all at once.
 						</p>
-						<button id="bento-sync-pmpro" class="button button-primary">Sync Active Members</button>
+						<select id="bento-sync-pmpro-filter" style="margin-right:8px;">
+							<option value="0">— All active members —</option>
+							<?php foreach ( $pmpro_levels as $level ) : ?>
+							<option value="<?php echo (int) $level->id; ?>">
+								<?php echo esc_html( $level->name ); ?>
+							</option>
+							<?php endforeach; ?>
+						</select>
+						<button id="bento-sync-pmpro" class="button button-primary">Sync</button>
 						<span id="bento-sync-pmpro-status" style="margin-left:12px;"></span>
 					</td>
 				</tr>
@@ -822,11 +860,18 @@ class Bento_Integration_Settings {
 					<th scope="row">Sensei Enrollments</th>
 					<td>
 						<p class="description" style="margin-bottom:8px;">
-							Sends the configured <em>Sensei: Course Enrolled</em> event for every active
-							or completed course enrollment. Useful when students enrolled before this
-							plugin was active.
+							Sends the configured <em>Sensei: Course Enrolled</em> event for active and completed
+							enrollments. Pick a specific course or sync all at once.
 						</p>
-						<button id="bento-sync-sensei" class="button button-primary">Sync Course Enrollments</button>
+						<select id="bento-sync-sensei-filter" style="margin-right:8px;">
+							<option value="0">— All enrollments —</option>
+							<?php foreach ( $sensei_courses as $course ) : ?>
+							<option value="<?php echo (int) $course->ID; ?>">
+								<?php echo esc_html( $course->post_title ); ?>
+							</option>
+							<?php endforeach; ?>
+						</select>
+						<button id="bento-sync-sensei" class="button button-primary">Sync</button>
 						<span id="bento-sync-sensei-status" style="margin-left:12px;"></span>
 					</td>
 				</tr>
