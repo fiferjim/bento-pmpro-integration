@@ -33,6 +33,17 @@ define( 'BENTO_PMPRO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BENTO_PMPRO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 /**
+ * Cancel all pending Action Scheduler actions on deactivation so they don't
+ * run in the background after the plugin has been switched off.
+ */
+register_deactivation_hook( __FILE__, function (): void {
+	if ( function_exists( 'as_unschedule_all_actions' ) ) {
+		as_unschedule_all_actions( 'bento_pmpro_as_sync',  [], 'bento_pmpro_integration' );
+		as_unschedule_all_actions( 'bento_pmpro_as_event', [], 'bento_pmpro_integration' );
+	}
+} );
+
+/**
  * Load plugin classes after all plugins have loaded so Bento, PMPro and Sensei
  * are all available.
  */
