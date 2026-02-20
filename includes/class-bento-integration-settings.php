@@ -43,6 +43,21 @@ class Bento_Integration_Settings {
 	}
 
 	// -------------------------------------------------------------------------
+	// Bento SDK availability check
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Return true only when the Bento SDK class exists AND exposes the
+	 * trigger_event() method we depend on. Guarding on the method (not just
+	 * the class) means we degrade gracefully if the SDK is updated with a
+	 * breaking rename rather than throwing a fatal error.
+	 */
+	public static function bento_sdk_available(): bool {
+		return class_exists( 'Bento_Events_Controller' )
+			&& method_exists( 'Bento_Events_Controller', 'trigger_event' );
+	}
+
+	// -------------------------------------------------------------------------
 	// Admin notice
 	// -------------------------------------------------------------------------
 
@@ -55,7 +70,7 @@ class Bento_Integration_Settings {
 			return;
 		}
 
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+		if ( ! self::bento_sdk_available() ) {
 			echo '<div class="notice notice-error"><p>'
 				. '<strong>Bento + PMPro Integration:</strong> '
 				. 'The Bento WordPress SDK plugin is not active. Events cannot be sent until it is installed and activated.'
@@ -463,8 +478,8 @@ class Bento_Integration_Settings {
 			return;
 		}
 
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
-			wp_send_json_error( 'Bento SDK is not active.' );
+		if ( ! self::bento_sdk_available() ) {
+			wp_send_json_error( 'Bento SDK is not active or is out of date.' );
 			return;
 		}
 
@@ -565,7 +580,7 @@ class Bento_Integration_Settings {
 	 * @param array $args { type, offset, filter_id }
 	 */
 	public static function run_scheduled_batch( array $args ): void {
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+		if ( ! self::bento_sdk_available() ) {
 			return;
 		}
 
@@ -634,7 +649,7 @@ class Bento_Integration_Settings {
 				[ compact( 'user_id', 'event_name', 'email', 'details', 'custom_fields' ) ],
 				self::AS_GROUP
 			);
-		} elseif ( class_exists( 'Bento_Events_Controller' ) ) {
+		} elseif ( self::bento_sdk_available() ) {
 			// Fallback: call directly if Action Scheduler is not available.
 			Bento_Events_Controller::trigger_event( $user_id, $event_name, $email, $details, $custom_fields );
 		}
@@ -646,7 +661,7 @@ class Bento_Integration_Settings {
 	 * @param array $args { user_id, event_name, email, details, custom_fields }
 	 */
 	public static function run_queued_event( array $args ): void {
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+		if ( ! self::bento_sdk_available() ) {
 			return;
 		}
 		Bento_Events_Controller::trigger_event(
