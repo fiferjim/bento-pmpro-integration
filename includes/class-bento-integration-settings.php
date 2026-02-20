@@ -33,7 +33,10 @@ class Bento_Integration_Settings {
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
 		add_action( 'wp_ajax_bento_pmpro_fetch_fields',     [ __CLASS__, 'ajax_fetch_fields' ] );
 		add_action( 'wp_ajax_bento_pmpro_condition_values', [ __CLASS__, 'ajax_condition_values' ] );
-		add_action( 'wp_ajax_bento_pmpro_sync_batch',       [ __CLASS__, 'ajax_sync_batch' ] );
+		add_action( 'wp_ajax_bento_pmpro_start_sync',       [ __CLASS__, 'ajax_start_sync' ] );
+		add_action( 'wp_ajax_bento_pmpro_sync_status',      [ __CLASS__, 'ajax_sync_status' ] );
+		// Action Scheduler hook — runs in background, not via AJAX.
+		add_action( 'bento_pmpro_as_sync', [ __CLASS__, 'run_scheduled_batch' ], 10, 1 );
 	}
 
 	// -------------------------------------------------------------------------
@@ -172,10 +175,11 @@ class Bento_Integration_Settings {
 			true
 		);
 		wp_localize_script( 'bento-pmpro-admin', 'bentoPmpro', [
-			'ajaxUrl'   => admin_url( 'admin-ajax.php' ),
-			'nonce'     => wp_create_nonce( 'bento_pmpro_fetch_fields' ),
-			'condNonce' => wp_create_nonce( 'bento_pmpro_condition_values' ),
-			'syncNonce' => wp_create_nonce( 'bento_pmpro_sync_batch' ),
+			'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
+			'nonce'      => wp_create_nonce( 'bento_pmpro_fetch_fields' ),
+			'condNonce'  => wp_create_nonce( 'bento_pmpro_condition_values' ),
+			'syncNonce'  => wp_create_nonce( 'bento_pmpro_sync_batch' ),
+			'syncStatus' => get_option( 'bento_pmpro_sync_status', [] ),
 		] );
 	}
 
@@ -395,16 +399,17 @@ class Bento_Integration_Settings {
 	// AJAX: bulk sync existing users
 	// -------------------------------------------------------------------------
 
+	/** Option key used to track background sync progress. */
+	const SYNC_STATUS_OPTION = 'bento_pmpro_sync_status';
+
+	/** Action Scheduler group name. */
+	const AS_GROUP = 'bento_pmpro_integration';
+
 	/**
-	 * AJAX handler: process one batch of existing users/enrollments.
-	 *
-	 * Accepts POST fields:
-	 *   type   – 'pmpro' or 'sensei'
-	 *   offset – integer, starting row for this batch
-	 *
-	 * Returns JSON with: total, offset (after this batch), done (bool).
+	 * AJAX handler: schedule the first Action Scheduler batch and initialise
+	 * the status record. Returns immediately — actual work runs in background.
 	 */
-	public static function ajax_sync_batch(): void {
+	public static function ajax_start_sync(): void {
 		check_ajax_referer( 'bento_pmpro_sync_batch' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
@@ -412,19 +417,98 @@ class Bento_Integration_Settings {
 			return;
 		}
 
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
-			wp_send_json_error( 'Bento plugin is not active.' );
+		if ( ! function_exists( 'as_schedule_single_action' ) ) {
+			wp_send_json_error( 'Action Scheduler is not available. Make sure PMPro or Sensei LMS is active.' );
 			return;
 		}
 
 		$type      = sanitize_key( $_POST['type']      ?? 'pmpro' );
-		$offset    = max( 0, (int) ( $_POST['offset']    ?? 0 ) );
 		$filter_id = max( 0, (int) ( $_POST['filter_id'] ?? 0 ) );
 
-		if ( 'sensei' === $type ) {
-			wp_send_json_success( self::sync_sensei_batch( $offset, 25, $filter_id ) );
-		} else {
-			wp_send_json_success( self::sync_pmpro_batch( $offset, 25, $filter_id ) );
+		// Cancel any existing pending actions for this type to avoid duplicates.
+		as_unschedule_all_actions( 'bento_pmpro_as_sync', [ 'type' => $type ], self::AS_GROUP );
+
+		// Initialise status.
+		$all                  = get_option( self::SYNC_STATUS_OPTION, [] );
+		$all[ $type ]         = [
+			'status'    => 'running',
+			'total'     => 0,
+			'offset'    => 0,
+			'filter_id' => $filter_id,
+			'message'   => 'Queued — waiting for background processing to start…',
+		];
+		update_option( self::SYNC_STATUS_OPTION, $all );
+
+		// Schedule first batch.
+		as_schedule_single_action(
+			time(),
+			'bento_pmpro_as_sync',
+			[ 'type' => $type, 'offset' => 0, 'filter_id' => $filter_id ],
+			self::AS_GROUP
+		);
+
+		wp_send_json_success( [ 'message' => 'Sync queued.' ] );
+	}
+
+	/**
+	 * AJAX handler: return the current sync status for a given type.
+	 * Called by the JS poller every few seconds.
+	 */
+	public static function ajax_sync_status(): void {
+		check_ajax_referer( 'bento_pmpro_sync_batch' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( 'Unauthorized', 403 );
+			return;
+		}
+
+		$type   = sanitize_key( $_POST['type'] ?? 'pmpro' );
+		$all    = get_option( self::SYNC_STATUS_OPTION, [] );
+		$status = $all[ $type ] ?? [ 'status' => 'idle', 'message' => '' ];
+
+		wp_send_json_success( $status );
+	}
+
+	/**
+	 * Action Scheduler callback: process one batch, update status, and
+	 * schedule the next batch if there are more records remaining.
+	 *
+	 * @param array $args { type, offset, filter_id }
+	 */
+	public static function run_scheduled_batch( array $args ): void {
+		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+			return;
+		}
+
+		$type      = sanitize_key( $args['type']      ?? 'pmpro' );
+		$offset    = max( 0, (int) ( $args['offset']    ?? 0 ) );
+		$filter_id = max( 0, (int) ( $args['filter_id'] ?? 0 ) );
+
+		$result = 'sensei' === $type
+			? self::sync_sensei_batch( $offset, 25, $filter_id )
+			: self::sync_pmpro_batch( $offset, 25, $filter_id );
+
+		// Persist progress.
+		$all          = get_option( self::SYNC_STATUS_OPTION, [] );
+		$all[ $type ] = [
+			'status'    => $result['done'] ? 'done' : 'running',
+			'total'     => $result['total'],
+			'offset'    => $result['offset'],
+			'filter_id' => $filter_id,
+			'message'   => $result['done']
+				? '✓ Done — synced ' . $result['total'] . ' records.'
+				: 'Synced ' . $result['offset'] . ' of ' . $result['total'] . '…',
+		];
+		update_option( self::SYNC_STATUS_OPTION, $all );
+
+		// Schedule next batch if not finished.
+		if ( ! $result['done'] && function_exists( 'as_schedule_single_action' ) ) {
+			as_schedule_single_action(
+				time(),
+				'bento_pmpro_as_sync',
+				[ 'type' => $type, 'offset' => $result['offset'], 'filter_id' => $filter_id ],
+				self::AS_GROUP
+			);
 		}
 	}
 

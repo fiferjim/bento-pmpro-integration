@@ -9,12 +9,15 @@
  *      real suggestions (e.g. actual plan names, course titles).
  *   3. Wires existing condition-value inputs to the correct datalist based
  *      on their current "Only if…" selection.
+ *   4. Resumes polling for any sync that was still running when the page loaded.
  *
  * Interactions:
  *   - Source-type change  → update source-value datalist + placeholder.
  *   - Condition-key change → update condition-value datalist.
  *   - Add Field button    → append a new blank row with all columns.
  *   - Remove button       → remove the row.
+ *   - Sync buttons        → start a background sync via Action Scheduler,
+ *                           then poll for status updates every 3 seconds.
  */
 /* global jQuery, bentoPmpro */
 jQuery( function ( $ ) {
@@ -189,53 +192,76 @@ jQuery( function ( $ ) {
 	} );
 
 	// -------------------------------------------------------------------------
-	// Bulk sync: process batches until done, updating a status string
+	// Bulk sync: fire-and-poll via Action Scheduler
+	//
+	// 1. Click → POST bento_pmpro_start_sync → schedules an AS job, returns
+	//    immediately (no waiting for the actual sync to finish).
+	// 2. Poll bento_pmpro_sync_status every 3 s until status !== 'running'.
+	// 3. On page load, resume polling for any type that is still 'running'
+	//    (handles page refreshes mid-sync).
 	// -------------------------------------------------------------------------
-	function runSync( type, $btn, $status, filterId ) {
-		$btn.prop( 'disabled', true );
-		$status.text( 'Starting…' );
+	var syncPollers = {}; // active setInterval handles, keyed by type
 
-		function processBatch( offset ) {
+	function startPolling( type, $btn, $status ) {
+		if ( syncPollers[ type ] ) {
+			return; // Already polling for this type.
+		}
+		$btn.prop( 'disabled', true );
+		syncPollers[ type ] = setInterval( function () {
 			$.post(
 				bentoPmpro.ajaxUrl,
 				{
-					action:      'bento_pmpro_sync_batch',
+					action:      'bento_pmpro_sync_status',
 					_ajax_nonce: bentoPmpro.syncNonce,
 					type:        type,
-					offset:      offset,
-					filter_id:   filterId || 0,
 				},
 				function ( response ) {
 					if ( ! response.success ) {
+						clearInterval( syncPollers[ type ] );
+						delete syncPollers[ type ];
 						$status.text( 'Error: ' + ( response.data || 'unknown error' ) );
 						$btn.prop( 'disabled', false );
 						return;
 					}
-
 					var d = response.data;
-
-					if ( d.total === 0 ) {
-						$status.text( 'Nothing to sync — no active records found.' );
+					$status.text( d.message || '' );
+					if ( 'running' !== d.status ) {
+						clearInterval( syncPollers[ type ] );
+						delete syncPollers[ type ];
 						$btn.prop( 'disabled', false );
-						return;
-					}
-
-					$status.text( 'Synced ' + Math.min( d.offset, d.total ) + ' of ' + d.total + '…' );
-
-					if ( d.done ) {
-						$status.text( '✓ Done — synced ' + d.total + ' records.' );
-						$btn.prop( 'disabled', false );
-					} else {
-						processBatch( d.offset );
 					}
 				}
 			).fail( function () {
-				$status.text( 'Request failed — please try again.' );
-				$btn.prop( 'disabled', false );
+				// Network hiccup — keep polling, don't abort.
 			} );
-		}
+		}, 3000 );
+	}
 
-		processBatch( 0 );
+	function runSync( type, $btn, $status, filterId ) {
+		$btn.prop( 'disabled', true );
+		$status.text( 'Queuing sync…' );
+
+		$.post(
+			bentoPmpro.ajaxUrl,
+			{
+				action:      'bento_pmpro_start_sync',
+				_ajax_nonce: bentoPmpro.syncNonce,
+				type:        type,
+				filter_id:   filterId || 0,
+			},
+			function ( response ) {
+				if ( ! response.success ) {
+					$status.text( 'Error: ' + ( response.data || 'unknown error' ) );
+					$btn.prop( 'disabled', false );
+					return;
+				}
+				$status.text( 'Queued — processing in background…' );
+				startPolling( type, $btn, $status );
+			}
+		).fail( function () {
+			$status.text( 'Request failed — please try again.' );
+			$btn.prop( 'disabled', false );
+		} );
 	}
 
 	$( '#bento-sync-pmpro' ).on( 'click', function () {
@@ -245,5 +271,19 @@ jQuery( function ( $ ) {
 	$( '#bento-sync-sensei' ).on( 'click', function () {
 		runSync( 'sensei', $( this ), $( '#bento-sync-sensei-status' ), $( '#bento-sync-sensei-filter' ).val() );
 	} );
+
+	// Resume polling for any sync that was still running when the page loaded.
+	if ( typeof bentoPmpro !== 'undefined' && bentoPmpro.syncStatus ) {
+		$.each( bentoPmpro.syncStatus, function ( type, statusData ) {
+			if ( 'running' === statusData.status ) {
+				var $btn    = $( '#bento-sync-' + type );
+				var $status = $( '#bento-sync-' + type + '-status' );
+				if ( $btn.length ) {
+					$status.text( statusData.message || 'Resuming…' );
+					startPolling( type, $btn, $status );
+				}
+			}
+		} );
+	}
 
 } );
