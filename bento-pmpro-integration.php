@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Bento + PMPro Integration
  * Description:       Sends Bento events on PMPro membership and Sensei LMS course activities.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Text Domain:       bento-pmpro
@@ -10,7 +10,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'BENTO_PMPRO_VERSION', '1.0.0' );
+define( 'BENTO_PMPRO_VERSION', '1.1.0' );
 define( 'BENTO_PMPRO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BENTO_PMPRO_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 

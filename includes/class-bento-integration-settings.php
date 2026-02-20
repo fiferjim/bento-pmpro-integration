@@ -35,8 +35,9 @@ class Bento_Integration_Settings {
 		add_action( 'wp_ajax_bento_pmpro_condition_values', [ __CLASS__, 'ajax_condition_values' ] );
 		add_action( 'wp_ajax_bento_pmpro_start_sync',       [ __CLASS__, 'ajax_start_sync' ] );
 		add_action( 'wp_ajax_bento_pmpro_sync_status',      [ __CLASS__, 'ajax_sync_status' ] );
-		// Action Scheduler hook — runs in background, not via AJAX.
-		add_action( 'bento_pmpro_as_sync', [ __CLASS__, 'run_scheduled_batch' ], 10, 1 );
+		// Action Scheduler hooks — run in background, not via AJAX.
+		add_action( 'bento_pmpro_as_sync',  [ __CLASS__, 'run_scheduled_batch' ], 10, 1 );
+		add_action( 'bento_pmpro_as_event', [ __CLASS__, 'run_queued_event' ],    10, 1 );
 	}
 
 	// -------------------------------------------------------------------------
@@ -510,6 +511,58 @@ class Bento_Integration_Settings {
 				self::AS_GROUP
 			);
 		}
+	}
+
+	// -------------------------------------------------------------------------
+	// Real-time event queuing via Action Scheduler
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Schedule a single Bento event to run in the background via Action Scheduler.
+	 *
+	 * All event data is resolved synchronously (while the original request context
+	 * is still accurate) and passed as arguments so AS can fire the HTTP call later.
+	 * Falls back to a direct call if Action Scheduler is unavailable.
+	 *
+	 * @param int    $user_id       WordPress user ID.
+	 * @param string $event_name    Bento event name (e.g. '$PmproMemberCheckout').
+	 * @param string $email         Subscriber email address.
+	 * @param array  $details       Event detail payload.
+	 * @param array  $custom_fields Resolved custom-field key/value pairs.
+	 */
+	public static function queue_event(
+		int $user_id, string $event_name, string $email,
+		array $details, array $custom_fields
+	): void {
+		if ( function_exists( 'as_schedule_single_action' ) ) {
+			as_schedule_single_action(
+				time(),
+				'bento_pmpro_as_event',
+				[ compact( 'user_id', 'event_name', 'email', 'details', 'custom_fields' ) ],
+				self::AS_GROUP
+			);
+		} elseif ( class_exists( 'Bento_Events_Controller' ) ) {
+			// Fallback: call directly if Action Scheduler is not available.
+			Bento_Events_Controller::trigger_event( $user_id, $event_name, $email, $details, $custom_fields );
+		}
+	}
+
+	/**
+	 * Action Scheduler callback: fire a previously queued Bento event.
+	 *
+	 * @param array $args { user_id, event_name, email, details, custom_fields }
+	 */
+	public static function run_queued_event( array $args ): void {
+		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
+			return;
+		}
+		Bento_Events_Controller::trigger_event(
+			$args['user_id'],
+			$args['event_name'],
+			$args['email'],
+			$args['details'],
+			$args['custom_fields']
+		);
 	}
 
 	/**

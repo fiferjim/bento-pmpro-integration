@@ -127,10 +127,6 @@ class Bento_PMPro_Events {
 	 * @param array  $details     Event-specific detail payload.
 	 */
 	private static function fire_event( string $event_key, int $user_id, array $details ): void {
-		if ( ! class_exists( 'Bento_Events_Controller' ) ) {
-			return;
-		}
-
 		$config = self::get_event_config( $event_key );
 		if ( ! $config['enabled'] ) {
 			return;
@@ -143,17 +139,13 @@ class Bento_PMPro_Events {
 
 		$custom_fields = self::resolve_custom_fields( $config['custom_fields'], $user_id, $details );
 
-		try {
-			Bento_Events_Controller::trigger_event(
-				$user_id,
-				$config['event_name'],
-				$user->user_email,
-				$details,
-				$custom_fields
-			);
-		} catch ( \Throwable $e ) {
-			error_log( 'Bento PMPro Integration: Failed to send event "' . $event_key . '" – ' . $e->getMessage() );
-		}
+		Bento_Integration_Settings::queue_event(
+			$user_id,
+			$config['event_name'],
+			$user->user_email,
+			$details,
+			$custom_fields
+		);
 	}
 
 	// -------------------------------------------------------------------------
