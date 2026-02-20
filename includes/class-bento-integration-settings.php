@@ -487,6 +487,8 @@ class Bento_Integration_Settings {
 					$details,
 					$resolved['custom_fields']
 				);
+				// Brief pause between API calls to avoid hitting Bento rate limits.
+				usleep( 250000 ); // 250ms
 			}
 		}
 
@@ -557,6 +559,8 @@ class Bento_Integration_Settings {
 					$details,
 					$resolved['custom_fields']
 				);
+				// Brief pause between API calls to avoid hitting Bento rate limits.
+				usleep( 250000 ); // 250ms
 			}
 		}
 
