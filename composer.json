@@ -1,0 +1,18 @@
+{
+  "require-dev": {
+    "pestphp/pest": "^2.0"
+  },
+  "autoload-dev": {
+    "classmap": [
+      "tests/"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "scripts": {
+    "test": "pest"
+  }
+}
