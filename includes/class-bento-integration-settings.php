@@ -72,8 +72,8 @@ class Bento_Integration_Settings {
 
 		if ( ! self::bento_sdk_available() ) {
 			echo '<div class="notice notice-error"><p>'
-				. '<strong>Bento + PMPro Integration:</strong> '
-				. 'The Bento WordPress SDK plugin is not active. Events cannot be sent until it is installed and activated.'
+				. '<strong>' . esc_html__( 'Bento + PMPro Integration:', 'bento-pmpro' ) . '</strong> '
+				. esc_html__( 'The Bento WordPress SDK plugin is not active. Events cannot be sent until it is installed and activated.', 'bento-pmpro' )
 				. '</p></div>';
 			return;
 		}
@@ -82,9 +82,10 @@ class Bento_Integration_Settings {
 		if ( empty( $bento['bento_site_key'] ) || empty( $bento['bento_publishable_key'] ) || empty( $bento['bento_secret_key'] ) ) {
 			$settings_url = admin_url( 'options-general.php?page=bento' );
 			echo '<div class="notice notice-warning"><p>'
-				. '<strong>Bento + PMPro Integration:</strong> '
-				. 'Bento API credentials are not configured. '
-				. '<a href="' . esc_url( $settings_url ) . '">Visit the Bento settings page</a> to add your site key and API keys.'
+				. '<strong>' . esc_html__( 'Bento + PMPro Integration:', 'bento-pmpro' ) . '</strong> '
+				. esc_html__( 'Bento API credentials are not configured.', 'bento-pmpro' ) . ' '
+				. '<a href="' . esc_url( $settings_url ) . '">' . esc_html__( 'Visit the Bento settings page', 'bento-pmpro' ) . '</a> '
+				. esc_html__( 'to add your site key and API keys.', 'bento-pmpro' )
 				. '</p></div>';
 		}
 	}
@@ -102,76 +103,76 @@ class Bento_Integration_Settings {
 		return [
 			// PMPro events
 			'pmpro_checkout' => [
-				'label'           => 'PMPro: Member Checkout',
+				'label'           => __( 'PMPro: Member Checkout', 'bento-pmpro' ),
 				'default_event'   => '$PmproMemberCheckout',
-				'description'     => 'Fires when a member completes checkout (new signup or renewal).',
+				'description'     => __( 'Fires when a member completes checkout (new signup or renewal).', 'bento-pmpro' ),
 				'event_data_keys' => [ 'level_id', 'level_name', 'order_total', 'payment_type' ],
 			],
 			'pmpro_level_changed' => [
-				'label'           => 'PMPro: Level Changed',
+				'label'           => __( 'PMPro: Level Changed', 'bento-pmpro' ),
 				'default_event'   => '$PmproLevelChanged',
-				'description'     => 'Fires when a member\'s active membership level changes.',
+				'description'     => __( 'Fires when a member\'s active membership level changes.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'level_id', 'new_level_name', 'old_level_names' ],
 			],
 			'pmpro_cancelled' => [
-				'label'           => 'PMPro: Membership Cancelled',
+				'label'           => __( 'PMPro: Membership Cancelled', 'bento-pmpro' ),
 				'default_event'   => '$PmproCancelled',
-				'description'     => 'Fires when a member cancels their membership from the frontend.',
+				'description'     => __( 'Fires when a member cancels their membership from the frontend.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'last_level_names' ],
 			],
 			'pmpro_payment_completed' => [
-				'label'           => 'PMPro: Recurring Payment Completed',
+				'label'           => __( 'PMPro: Recurring Payment Completed', 'bento-pmpro' ),
 				'default_event'   => '$PmproPaymentCompleted',
-				'description'     => 'Fires when a recurring subscription payment succeeds.',
+				'description'     => __( 'Fires when a recurring subscription payment succeeds.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'order_total', 'level_name' ],
 			],
 			'pmpro_payment_failed' => [
-				'label'           => 'PMPro: Recurring Payment Failed',
+				'label'           => __( 'PMPro: Recurring Payment Failed', 'bento-pmpro' ),
 				'default_event'   => '$PmproPaymentFailed',
-				'description'     => 'Fires when a recurring subscription payment fails.',
+				'description'     => __( 'Fires when a recurring subscription payment fails.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'level_name' ],
 			],
 			'pmpro_expired' => [
-				'label'           => 'PMPro: Membership Expired',
+				'label'           => __( 'PMPro: Membership Expired', 'bento-pmpro' ),
 				'default_event'   => '$PmproMembershipExpired',
-				'description'     => 'Fires when a membership expires.',
+				'description'     => __( 'Fires when a membership expires.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'level_id', 'level_name' ],
 			],
 			// Sensei LMS events
 			'sensei_course_enrolled' => [
-				'label'           => 'Sensei: Course Enrolled',
+				'label'           => __( 'Sensei: Course Enrolled', 'bento-pmpro' ),
 				'default_event'   => '$SenseiCourseEnrolled',
-				'description'     => 'Fires when a student is enrolled in a course.',
+				'description'     => __( 'Fires when a student is enrolled in a course.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'course_id', 'course_title' ],
 			],
 			'sensei_course_unenrolled' => [
-				'label'           => 'Sensei: Course Unenrolled',
+				'label'           => __( 'Sensei: Course Unenrolled', 'bento-pmpro' ),
 				'default_event'   => '$SenseiCourseUnenrolled',
-				'description'     => 'Fires when a student is unenrolled from a course.',
+				'description'     => __( 'Fires when a student is unenrolled from a course.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'course_id', 'course_title' ],
 			],
 			'sensei_course_started' => [
-				'label'           => 'Sensei: Course Started',
+				'label'           => __( 'Sensei: Course Started', 'bento-pmpro' ),
 				'default_event'   => '$SenseiCourseStarted',
-				'description'     => 'Fires when a student starts working through a course.',
+				'description'     => __( 'Fires when a student starts working through a course.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'course_id', 'course_title' ],
 			],
 			'sensei_course_completed' => [
-				'label'           => 'Sensei: Course Completed',
+				'label'           => __( 'Sensei: Course Completed', 'bento-pmpro' ),
 				'default_event'   => '$SenseiCourseCompleted',
-				'description'     => 'Fires when a student completes all lessons in a course.',
+				'description'     => __( 'Fires when a student completes all lessons in a course.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'course_id', 'course_title' ],
 			],
 			'sensei_lesson_completed' => [
-				'label'           => 'Sensei: Lesson Completed',
+				'label'           => __( 'Sensei: Lesson Completed', 'bento-pmpro' ),
 				'default_event'   => '$SenseiLessonCompleted',
-				'description'     => 'Fires when a student completes a lesson.',
+				'description'     => __( 'Fires when a student completes a lesson.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'lesson_id', 'lesson_title', 'course_id' ],
 			],
 			'sensei_quiz_submitted' => [
-				'label'           => 'Sensei: Quiz Submitted',
+				'label'           => __( 'Sensei: Quiz Submitted', 'bento-pmpro' ),
 				'default_event'   => '$SenseiQuizSubmitted',
-				'description'     => 'Fires when a student submits a quiz.',
+				'description'     => __( 'Fires when a student submits a quiz.', 'bento-pmpro' ),
 				'event_data_keys' => [ 'quiz_id', 'grade', 'pass', 'quiz_pass_percentage', 'quiz_grade_type' ],
 			],
 		];
@@ -186,8 +187,8 @@ class Bento_Integration_Settings {
 	 */
 	public static function add_settings_page(): void {
 		add_options_page(
-			'Bento Membership Integration',
-			'Bento Membership',
+			__( 'Bento Membership Integration', 'bento-pmpro' ),
+			__( 'Bento Membership', 'bento-pmpro' ),
 			'manage_options',
 			'bento-pmpro-integration',
 			[ __CLASS__, 'render_settings_page' ]
@@ -246,7 +247,7 @@ class Bento_Integration_Settings {
 		check_ajax_referer( 'bento_pmpro_fetch_fields' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( 'Unauthorized', 403 );
+			wp_send_json_error( __( 'Unauthorized', 'bento-pmpro' ), 403 );
 		}
 
 		$cached = get_transient( self::FIELDS_TRANSIENT );
@@ -261,7 +262,7 @@ class Bento_Integration_Settings {
 		$secret  = $bento['bento_secret_key']      ?? '';
 
 		if ( empty( $site ) || empty( $pub ) || empty( $secret ) ) {
-			wp_send_json_error( 'Bento API credentials are not configured. Visit the Bento settings page first.' );
+			wp_send_json_error( __( 'Bento API credentials are not configured. Visit the Bento settings page first.', 'bento-pmpro' ) );
 			return;
 		}
 
@@ -278,13 +279,13 @@ class Bento_Integration_Settings {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			wp_send_json_error( 'Bento API request failed: ' . $response->get_error_message() );
+			wp_send_json_error( __( 'Bento API request failed: ', 'bento-pmpro' ) . $response->get_error_message() );
 			return;
 		}
 
 		$code = wp_remote_retrieve_response_code( $response );
 		if ( $code !== 200 ) {
-			wp_send_json_error( 'Bento API returned HTTP ' . $code );
+			wp_send_json_error( __( 'Bento API returned HTTP ', 'bento-pmpro' ) . $code );
 			return;
 		}
 
@@ -320,7 +321,7 @@ class Bento_Integration_Settings {
 		check_ajax_referer( 'bento_pmpro_condition_values' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( 'Unauthorized', 403 );
+			wp_send_json_error( __( 'Unauthorized', 'bento-pmpro' ), 403 );
 			return;
 		}
 
@@ -474,12 +475,12 @@ class Bento_Integration_Settings {
 		check_ajax_referer( 'bento_pmpro_test_event' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( 'Unauthorized', 403 );
+			wp_send_json_error( __( 'Unauthorized', 'bento-pmpro' ), 403 );
 			return;
 		}
 
 		if ( ! self::bento_sdk_available() ) {
-			wp_send_json_error( 'Bento SDK is not active or is out of date.' );
+			wp_send_json_error( __( 'Bento SDK is not active or is out of date.', 'bento-pmpro' ) );
 			return;
 		}
 
@@ -493,9 +494,10 @@ class Bento_Integration_Settings {
 				[ 'source' => 'bento-pmpro-integration' ],
 				[]
 			);
-			wp_send_json_success( 'Test event sent to ' . $user->user_email . '. Check your Bento dashboard.' );
+			/* translators: %s: admin user email address */
+			wp_send_json_success( sprintf( __( 'Test event sent to %s. Check your Bento dashboard.', 'bento-pmpro' ), $user->user_email ) );
 		} catch ( \Throwable $e ) {
-			wp_send_json_error( 'Failed: ' . $e->getMessage() );
+			wp_send_json_error( __( 'Failed: ', 'bento-pmpro' ) . $e->getMessage() );
 		}
 	}
 
@@ -517,12 +519,12 @@ class Bento_Integration_Settings {
 		check_ajax_referer( 'bento_pmpro_sync_batch' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( 'Unauthorized', 403 );
+			wp_send_json_error( __( 'Unauthorized', 'bento-pmpro' ), 403 );
 			return;
 		}
 
 		if ( ! function_exists( 'as_schedule_single_action' ) ) {
-			wp_send_json_error( 'Action Scheduler is not available. Make sure PMPro or Sensei LMS is active.' );
+			wp_send_json_error( __( 'Action Scheduler is not available. Make sure PMPro or Sensei LMS is active.', 'bento-pmpro' ) );
 			return;
 		}
 
@@ -539,7 +541,7 @@ class Bento_Integration_Settings {
 			'total'     => 0,
 			'offset'    => 0,
 			'filter_id' => $filter_id,
-			'message'   => 'Queued — waiting for background processing to start…',
+			'message'   => __( 'Queued — waiting for background processing to start…', 'bento-pmpro' ),
 		];
 		update_option( self::SYNC_STATUS_OPTION, $all );
 
@@ -551,7 +553,7 @@ class Bento_Integration_Settings {
 			self::AS_GROUP
 		);
 
-		wp_send_json_success( [ 'message' => 'Sync queued.' ] );
+		wp_send_json_success( [ 'message' => __( 'Sync queued.', 'bento-pmpro' ) ] );
 	}
 
 	/**
@@ -562,7 +564,7 @@ class Bento_Integration_Settings {
 		check_ajax_referer( 'bento_pmpro_sync_batch' );
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( 'Unauthorized', 403 );
+			wp_send_json_error( __( 'Unauthorized', 'bento-pmpro' ), 403 );
 			return;
 		}
 
@@ -596,7 +598,10 @@ class Bento_Integration_Settings {
 		$all           = get_option( self::SYNC_STATUS_OPTION, [] );
 		$prev_errors   = (int) ( $all[ $type ]['errors'] ?? 0 );
 		$total_errors  = $prev_errors + (int) ( $result['errors'] ?? 0 );
-		$error_suffix  = $total_errors > 0 ? ' (' . $total_errors . ' failed — check error log)' : '';
+		/* translators: %d: number of failed API calls */
+		$error_suffix = $total_errors > 0
+			? ' ' . sprintf( __( '(%d failed — check error log)', 'bento-pmpro' ), $total_errors )
+			: '';
 
 		$all[ $type ] = [
 			'status'    => $result['done'] ? 'done' : 'running',
@@ -605,8 +610,10 @@ class Bento_Integration_Settings {
 			'filter_id' => $filter_id,
 			'errors'    => $total_errors,
 			'message'   => $result['done']
-				? '✓ Done — synced ' . $result['total'] . ' records' . $error_suffix . '.'
-				: 'Synced ' . $result['offset'] . ' of ' . $result['total'] . '…' . $error_suffix,
+				/* translators: %1$d: total records synced, %2$s: optional error suffix */
+				? sprintf( __( '✓ Done — synced %1$d records%2$s.', 'bento-pmpro' ), $result['total'], $error_suffix )
+				/* translators: %1$d: records synced so far, %2$d: total records, %3$s: optional error suffix */
+				: sprintf( __( 'Synced %1$d of %2$d…%3$s', 'bento-pmpro' ), $result['offset'], $result['total'], $error_suffix ),
 		];
 		update_option( self::SYNC_STATUS_OPTION, $all );
 
@@ -937,8 +944,8 @@ class Bento_Integration_Settings {
 		<?php endforeach; ?>
 
 		<div class="wrap">
-			<h1>Bento Membership Integration</h1>
-			<p>Configure which membership and course events are sent to Bento, and map custom fields to each event.</p>
+			<h1><?php esc_html_e( 'Bento Membership Integration', 'bento-pmpro' ); ?></h1>
+			<p><?php esc_html_e( 'Configure which membership and course events are sent to Bento, and map custom fields to each event.', 'bento-pmpro' ); ?></p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( self::OPTION_GROUP ); ?>
@@ -966,41 +973,44 @@ class Bento_Integration_Settings {
 
 					<table class="form-table" style="margin-top:0;">
 						<tr>
-							<th scope="row">Enable</th>
+							<th scope="row"><?php esc_html_e( 'Enable', 'bento-pmpro' ); ?></th>
 							<td>
 								<label>
 									<input type="checkbox"
 										name="<?php echo esc_attr( $field_base ); ?>[enabled]"
 										value="1"
 										<?php checked( $enabled ); ?>>
-									Send this event to Bento
+									<?php esc_html_e( 'Send this event to Bento', 'bento-pmpro' ); ?>
 								</label>
 							</td>
 						</tr>
 						<tr>
-							<th scope="row">Event Name</th>
+							<th scope="row"><?php esc_html_e( 'Event Name', 'bento-pmpro' ); ?></th>
 							<td>
 								<input type="text"
 									class="regular-text"
 									name="<?php echo esc_attr( $field_base ); ?>[event_name]"
 									value="<?php echo esc_attr( $event_name ); ?>"
 									placeholder="<?php echo esc_attr( $def['default_event'] ); ?>">
-								<p class="description">The Bento event type identifier (e.g. <code><?php echo esc_html( $def['default_event'] ); ?></code>).</p>
+								<p class="description"><?php
+								/* translators: %s: Bento event name e.g. $PmproMemberCheckout */
+								printf( esc_html__( 'The Bento event type identifier (e.g. %s).', 'bento-pmpro' ), '<code>' . esc_html( $def['default_event'] ) . '</code>' );
+							?></p>
 							</td>
 						</tr>
 					</table>
 
-					<h4 style="margin-bottom:4px;">Custom Field Mappings</h4>
-					<p class="description">Set subscriber fields when this event fires. Use <em>Only if</em> to apply a row only when a specific event value matches (e.g. only for the Free Plan).</p>
+					<h4 style="margin-bottom:4px;"><?php esc_html_e( 'Custom Field Mappings', 'bento-pmpro' ); ?></h4>
+					<p class="description"><?php esc_html_e( 'Set subscriber fields when this event fires. Use "Only if" to apply a row only when a specific event value matches (e.g. only for the Free Plan).', 'bento-pmpro' ); ?></p>
 
 					<table class="wp-list-table widefat striped" style="margin-bottom:8px;table-layout:auto;">
 						<thead>
 							<tr>
-								<th>Bento Field</th>
-								<th>Set To</th>
-								<th>Value</th>
-								<th>Only if&hellip;</th>
-								<th>&hellip;equals</th>
+								<th><?php esc_html_e( 'Bento Field', 'bento-pmpro' ); ?></th>
+								<th><?php esc_html_e( 'Set To', 'bento-pmpro' ); ?></th>
+								<th><?php esc_html_e( 'Value', 'bento-pmpro' ); ?></th>
+								<th><?php esc_html_e( 'Only if…', 'bento-pmpro' ); ?></th>
+								<th><?php esc_html_e( '…equals', 'bento-pmpro' ); ?></th>
 								<th></th>
 							</tr>
 						</thead>
@@ -1023,9 +1033,9 @@ class Bento_Integration_Settings {
 									<select
 										class="bento-source-type"
 										name="<?php echo esc_attr( $field_base ); ?>[custom_fields][<?php echo (int) $idx; ?>][source_type]">
-										<option value="static"      <?php selected( $saved_source_type, 'static' ); ?>>Static</option>
-										<option value="user_meta"   <?php selected( $saved_source_type, 'user_meta' ); ?>>User Meta</option>
-										<option value="event_data"  <?php selected( $saved_source_type, 'event_data' ); ?>>Event Data</option>
+										<option value="static"      <?php selected( $saved_source_type, 'static' ); ?>><?php esc_html_e( 'Static', 'bento-pmpro' ); ?></option>
+										<option value="user_meta"   <?php selected( $saved_source_type, 'user_meta' ); ?>><?php esc_html_e( 'User Meta', 'bento-pmpro' ); ?></option>
+										<option value="event_data"  <?php selected( $saved_source_type, 'event_data' ); ?>><?php esc_html_e( 'Event Data', 'bento-pmpro' ); ?></option>
 									</select>
 								</td>
 								<td>
@@ -1040,7 +1050,7 @@ class Bento_Integration_Settings {
 									<select
 										class="bento-condition-key"
 										name="<?php echo esc_attr( $field_base ); ?>[custom_fields][<?php echo (int) $idx; ?>][condition_key]">
-										<option value="">— always —</option>
+										<option value=""><?php esc_html_e( '— always —', 'bento-pmpro' ); ?></option>
 										<?php foreach ( $event_data_keys as $dk ) : ?>
 										<option value="<?php echo esc_attr( $dk ); ?>" <?php selected( $saved_condition_key, $dk ); ?>>
 											<?php echo esc_html( $dk ); ?>
@@ -1056,7 +1066,7 @@ class Bento_Integration_Settings {
 										placeholder="any">
 								</td>
 								<td>
-									<button type="button" class="button bento-remove-field">Remove</button>
+									<button type="button" class="button bento-remove-field"><?php esc_html_e( 'Remove', 'bento-pmpro' ); ?></button>
 								</td>
 							</tr>
 							<?php endforeach; ?>
@@ -1069,31 +1079,29 @@ class Bento_Integration_Settings {
 						data-field-base="<?php echo esc_attr( $field_base ); ?>"
 						data-table="<?php echo esc_attr( $table_id ); ?>"
 						data-event-keys="<?php echo esc_attr( wp_json_encode( $event_data_keys ) ); ?>">
-						+ Add Field
+						<?php esc_html_e( '+ Add Field', 'bento-pmpro' ); ?>
 					</button>
 				</div>
 				<?php endforeach; ?>
 
-				<?php submit_button( 'Save Settings' ); ?>
+				<?php submit_button( __( 'Save Settings', 'bento-pmpro' ) ); ?>
 			</form>
 
 			<hr style="margin:32px 0;">
 
-			<h2>Test Connection</h2>
-			<p>Send a <code>$BentoTest</code> event for your admin account to confirm the Bento SDK and API credentials are working.</p>
+			<h2><?php esc_html_e( 'Test Connection', 'bento-pmpro' ); ?></h2>
+			<p><?php esc_html_e( 'Send a $BentoTest event for your admin account to confirm the Bento SDK and API credentials are working.', 'bento-pmpro' ); ?></p>
 			<p>
-				<button id="bento-test-event" class="button button-secondary">Send test event</button>
+				<button id="bento-test-event" class="button button-secondary"><?php esc_html_e( 'Send test event', 'bento-pmpro' ); ?></button>
 				<span id="bento-test-event-status" style="margin-left:12px;"></span>
 			</p>
 
 			<hr style="margin:32px 0;">
 
-			<h2>Sync Existing Users</h2>
+			<h2><?php esc_html_e( 'Sync Existing Users', 'bento-pmpro' ); ?></h2>
 			<p>
-				Apply your configured field mappings to users who already existed before this plugin was installed.
-				Each sync fires the same event (with the same name and field mappings) as if the action had just happened —
-				so the subscriber record in Bento gets the correct fields set.
-				<br><strong>Note:</strong> save your settings above before running a sync.
+				<?php esc_html_e( 'Apply your configured field mappings to users who already existed before this plugin was installed. Each sync fires the same event (with the same name and field mappings) as if the action had just happened — so the subscriber record in Bento gets the correct fields set.', 'bento-pmpro' ); ?>
+				<br><strong><?php esc_html_e( 'Note:', 'bento-pmpro' ); ?></strong> <?php esc_html_e( 'save your settings above before running a sync.', 'bento-pmpro' ); ?>
 			</p>
 
 			<?php
@@ -1120,40 +1128,38 @@ class Bento_Integration_Settings {
 
 			<table class="form-table">
 				<tr>
-					<th scope="row">PMPro Members</th>
+					<th scope="row"><?php esc_html_e( 'PMPro Members', 'bento-pmpro' ); ?></th>
 					<td>
 						<p class="description" style="margin-bottom:8px;">
-							Sends the configured <em>PMPro: Member Checkout</em> event for active members,
-							applying your field mappings and conditions. Pick a specific level or sync all at once.
+							<?php esc_html_e( 'Sends the configured PMPro: Member Checkout event for active members, applying your field mappings and conditions. Pick a specific level or sync all at once.', 'bento-pmpro' ); ?>
 						</p>
 						<select id="bento-sync-pmpro-filter" style="margin-right:8px;">
-							<option value="0">— All active members —</option>
+							<option value="0"><?php esc_html_e( '— All active members —', 'bento-pmpro' ); ?></option>
 							<?php foreach ( $pmpro_levels as $level ) : ?>
 							<option value="<?php echo (int) $level->id; ?>">
 								<?php echo esc_html( $level->name ); ?>
 							</option>
 							<?php endforeach; ?>
 						</select>
-						<button id="bento-sync-pmpro" class="button button-primary">Sync</button>
+						<button id="bento-sync-pmpro" class="button button-primary"><?php esc_html_e( 'Sync', 'bento-pmpro' ); ?></button>
 						<span id="bento-sync-pmpro-status" style="margin-left:12px;"></span>
 					</td>
 				</tr>
 				<tr>
-					<th scope="row">Sensei Enrollments</th>
+					<th scope="row"><?php esc_html_e( 'Sensei Enrollments', 'bento-pmpro' ); ?></th>
 					<td>
 						<p class="description" style="margin-bottom:8px;">
-							Sends the configured <em>Sensei: Course Enrolled</em> event for active and completed
-							enrollments. Pick a specific course or sync all at once.
+							<?php esc_html_e( 'Sends the configured Sensei: Course Enrolled event for active and completed enrollments. Pick a specific course or sync all at once.', 'bento-pmpro' ); ?>
 						</p>
 						<select id="bento-sync-sensei-filter" style="margin-right:8px;">
-							<option value="0">— All enrollments —</option>
+							<option value="0"><?php esc_html_e( '— All enrollments —', 'bento-pmpro' ); ?></option>
 							<?php foreach ( $sensei_courses as $course ) : ?>
 							<option value="<?php echo (int) $course->ID; ?>">
 								<?php echo esc_html( $course->post_title ); ?>
 							</option>
 							<?php endforeach; ?>
 						</select>
-						<button id="bento-sync-sensei" class="button button-primary">Sync</button>
+						<button id="bento-sync-sensei" class="button button-primary"><?php esc_html_e( 'Sync', 'bento-pmpro' ); ?></button>
 						<span id="bento-sync-sensei-status" style="margin-left:12px;"></span>
 					</td>
 				</tr>

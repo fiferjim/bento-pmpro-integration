@@ -21,10 +21,10 @@ register_activation_hook( __FILE__, function (): void {
 	if ( ! class_exists( 'Bento_Events_Controller' ) ) {
 		deactivate_plugins( plugin_basename( __FILE__ ) );
 		wp_die(
-			'<p><strong>Bento + PMPro Integration</strong> requires the '
-			. '<strong>Bento WordPress SDK</strong> plugin to be installed and active. '
-			. 'Please activate the Bento SDK first, then activate this plugin.</p>',
-			'Plugin Activation Error',
+			'<p><strong>' . __( 'Bento + PMPro Integration', 'bento-pmpro' ) . '</strong> '
+			. __( 'requires the <strong>Bento WordPress SDK</strong> plugin to be installed and active. Please activate the Bento SDK first, then activate this plugin.', 'bento-pmpro' )
+			. '</p>',
+			__( 'Plugin Activation Error', 'bento-pmpro' ),
 			[ 'back_link' => true ]
 		);
 	}
