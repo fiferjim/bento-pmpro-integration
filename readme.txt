@@ -4,7 +4,7 @@ Tags: bento, pmpro, paid memberships pro, sensei, lms, email, automation
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,14 @@ Yes — if Sensei is not active, only PMPro hooks are registered.
 2. Bulk sync — send existing members and course enrollments to Bento in the background.
 
 == Changelog ==
+
+= 1.3.0 =
+* Add automated unit tests (Pest) covering field resolution, settings sanitization, and duplicate-event prevention.
+* Make the Bento fields API endpoint filterable via bento_pmpro_fields_endpoint for staging and custom environments.
+* Internationalise all user-visible strings (i18n / l10n ready).
+* Add GPL-2.0-or-later licence header to the plugin file.
+* Add full WordPress.org-format readme.txt with changelog and FAQ.
+* Guard batch sync methods against PMPro / Sensei being deactivated mid-run.
 
 = 1.2.0 =
 * Guard against fatal errors if PMPro or Sensei is deactivated while the plugin remains active.
