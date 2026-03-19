@@ -862,6 +862,9 @@ class Bento_Integration_Settings {
 	/**
 	 * Sanitize the entire settings array before it is saved to the database.
 	 *
+	 * After sanitization, any Bento field keys that don't already exist on the
+	 * remote Bento account are created automatically via the Fields API.
+	 *
 	 * @param mixed $raw Raw POST data from the settings form.
 	 * @return array Sanitized settings.
 	 */
@@ -881,6 +884,21 @@ class Bento_Integration_Settings {
 				'event_name'    => sanitize_text_field( $event_raw['event_name'] ?? $def['default_event'] ),
 				'custom_fields' => self::sanitize_custom_fields( $event_raw['custom_fields'] ?? [] ),
 			];
+		}
+
+		// Collect every unique Bento field key across all events and ensure
+		// each one exists on the remote Bento account.
+		$all_keys = [];
+		foreach ( $clean as $event ) {
+			foreach ( $event['custom_fields'] as $row ) {
+				if ( '' !== $row['key'] ) {
+					$all_keys[ $row['key'] ] = true;
+				}
+			}
+		}
+
+		if ( ! empty( $all_keys ) ) {
+			self::create_missing_bento_fields( array_keys( $all_keys ) );
 		}
 
 		return $clean;
@@ -916,6 +934,102 @@ class Bento_Integration_Settings {
 			];
 		}
 		return $clean;
+	}
+
+	/**
+	 * Ensure every field key in $keys exists on the remote Bento account.
+	 *
+	 * Fetches the current field list (using the cached transient when available),
+	 * then calls POST /v1/fetch/fields for each key that is missing. Bento only
+	 * supports creating one field per request.
+	 *
+	 * Failures are silently ignored — the field will simply be auto-created by
+	 * Bento when the first event containing that field is received.
+	 *
+	 * @param string[] $keys Bento field keys to ensure exist.
+	 */
+	private static function create_missing_bento_fields( array $keys ): void {
+		$bento  = get_option( 'bento_settings', [] );
+		$site   = $bento['bento_site_key']        ?? '';
+		$pub    = $bento['bento_publishable_key'] ?? '';
+		$secret = $bento['bento_secret_key']      ?? '';
+
+		if ( empty( $site ) || empty( $pub ) || empty( $secret ) ) {
+			return;
+		}
+
+		// Fetch existing fields (prefer transient cache).
+		$existing = get_transient( self::FIELDS_TRANSIENT );
+		if ( false === $existing ) {
+			/** This filter is documented in includes/class-bento-integration-settings.php */
+			$fields_endpoint = apply_filters(
+				'bento_pmpro_fields_endpoint',
+				'https://app.bentonow.com/api/v1/fetch/fields'
+			);
+
+			$response = wp_remote_get(
+				$fields_endpoint . '?site_uuid=' . urlencode( $site ),
+				[
+					'headers' => [
+						'Accept'        => 'application/json',
+						'Authorization' => 'Basic ' . base64_encode( $pub . ':' . $secret ),
+						'User-Agent'    => 'bento-wordpress-' . $site,
+					],
+					'timeout' => 15,
+				]
+			);
+
+			$existing = [];
+			if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
+				$body = json_decode( wp_remote_retrieve_body( $response ), true );
+				if ( ! empty( $body['data'] ) && is_array( $body['data'] ) ) {
+					foreach ( $body['data'] as $field ) {
+						$k = $field['attributes']['key'] ?? '';
+						if ( '' !== $k ) {
+							$existing[] = $k;
+						}
+					}
+				}
+			}
+		}
+
+		$existing_map = array_flip( $existing );
+
+		/** This filter is documented in includes/class-bento-integration-settings.php */
+		$fields_endpoint = apply_filters(
+			'bento_pmpro_fields_endpoint',
+			'https://app.bentonow.com/api/v1/fetch/fields'
+		);
+
+		$created = [];
+		foreach ( $keys as $key ) {
+			if ( isset( $existing_map[ $key ] ) ) {
+				continue;
+			}
+
+			$response = wp_remote_post(
+				$fields_endpoint . '?site_uuid=' . urlencode( $site ),
+				[
+					'headers' => [
+						'Accept'        => 'application/json',
+						'Content-Type'  => 'application/json',
+						'Authorization' => 'Basic ' . base64_encode( $pub . ':' . $secret ),
+						'User-Agent'    => 'bento-wordpress-' . $site,
+					],
+					'body'    => wp_json_encode( [ 'field' => [ 'key' => $key ] ] ),
+					'timeout' => 15,
+				]
+			);
+
+			if ( ! is_wp_error( $response ) && in_array( wp_remote_retrieve_response_code( $response ), [ 200, 201 ], true ) ) {
+				$created[] = $key;
+			}
+		}
+
+		// Bust the fields cache so the autocomplete picks up the new fields.
+		if ( ! empty( $created ) ) {
+			delete_transient( self::FIELDS_TRANSIENT );
+		}
 	}
 
 	// -------------------------------------------------------------------------
